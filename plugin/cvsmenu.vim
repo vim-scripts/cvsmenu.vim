@@ -1,7 +1,7 @@
 " CVSmenu.vim : Vim menu for using CVS
 " Author : Thorsten Maerz <info@netztorte.de>
-" $Revision: 1.37 $
-" $Date: 2001/08/28 18:34:05 $
+" $Revision: 1.42 $
+" $Date: 2001/09/01 22:08:12 $
 " License : LGPL
 "
 " Tested with Vim 6.0
@@ -10,14 +10,17 @@
 "
 " TODO: Better support for additional params
 
+"#############################################################################
+" Settings (1/2)
+"#############################################################################
+
 if exists("loaded_cvsmenu")
   aunmenu CVS
 endif
 
-if has('unix')
-  let s:sep='/'
-else
-  let s:sep='\'
+if !exists('$TIMEOFFSET')
+  "let $TIMEOFFSET = 0	" GMT
+  let $TIMEOFFSET = 2	" GMT+1, Summertime (CEST)
 endif
 
 if ($CVSOPT == '')
@@ -35,15 +38,23 @@ if !exists("g:CVSqueryrevision")
   let g:CVSqueryrevision = 0		" 0:fast update 1:query for revisions
 endif
 if !exists("g:CVSdumpandclose")
-  let g:CVSdumpandclose = 0		" 1:put output to statusline and close output window
+  let g:CVSdumpandclose = 2		" 0:new buffer 1:statusline 2:autoswitch
 endif
 if !exists("g:CVSsortoutput")
   let g:CVSsortoutput = 1		" sort cvs output (group conflicts,updates,...)
 endif
-if !exists("s:CVSupdatequeryonly")
-  let s:CVSupdatequeryonly = 0		" 0:really update 1:be a simulant
+if !exists("g:CVScompressoutput")
+  let g:CVScompressoutput = 1		" show extended output only if error
 endif
 
+if has('unix')
+  let s:sep='/'
+else
+  let s:sep='\'
+endif
+
+let s:CVSupdatequeryonly = 0
+let s:CVSentries='CVS'.s:sep.'Entries'
 let s:cvsmenuhttp="http://cvs.sf.net/cgi-bin/viewcvs.cgi/~checkout~/ezytools/VimTools/"
 let s:cvsmenucvs=":pserver:anonymous@cvs.ezytools.sf.net:/cvsroot/ezytools"
 
@@ -51,36 +62,49 @@ let s:cvsmenucvs=":pserver:anonymous@cvs.ezytools.sf.net:/cvsroot/ezytools"
 " Menu entries
 "-----------------------------------------------------------------------------
 " <esc> in Keyword menus to avoid expansion
+" use only TAB between menu item and command (used for MakeLeaderMapping)
 
-amenu &CVS.in&fo  	      				:call CVSShowInfo()<cr>
-amenu &CVS.Settin&gs.Toggle\ buffer/&dir		:call CVSToggleForceDir()<cr>
-amenu &CVS.Settin&gs.Toggle\ revision\ &queries		:call CVSToggleQueryRevision()<cr>
-amenu &CVS.Settin&gs.Toggle\ &output			:call CVSToggleDumpAndClose()<cr>
-amenu &CVS.Settin&gs.Toggle\ &sort\ output		:call CVSToggleSortOutput()<cr>
+amenu &CVS.in&fo					:call CVSShowInfo()<cr>
+amenu &CVS.Settin&gs.in&fo\ (buffer)			:call CVSShowInfo(1)<cr>
+amenu &CVS.Settin&gs.&Target.File\ in\ &buffer		:call CVSSetForceDir(0)<cr>
+amenu &CVS.Settin&gs.&Target.&Directory			:call CVSSetForceDir(2)<cr>
+amenu &CVS.Settin&gs.Revision\ &queries.&Enable		:call CVSSetQueryRevision(1)<cr>
+amenu &CVS.Settin&gs.Revision\ &queries.&Disable	:call CVSSetQueryRevision(0)<cr>
+amenu &CVS.Settin&gs.&Output.-SEP1-				:
+amenu &CVS.Settin&gs.&Output.To\ new\ &buffer		:call CVSSetDumpAndClose(0)<cr>
+amenu &CVS.Settin&gs.&Output.To\ status&line		:call CVSSetDumpAndClose(1)<cr>
+amenu &CVS.Settin&gs.&Output.&Autoswitch		:call CVSSetDumpAndClose(2)<cr>
+amenu &CVS.Settin&gs.&Output.-SEP2-				:
+amenu &CVS.Settin&gs.&Output.&Compressed		:call CVSSetCompressOutput(1)<cr>
+amenu &CVS.Settin&gs.&Output.&Full			:call CVSSetCompressOutput(0)<cr>
+amenu &CVS.Settin&gs.&Output.-SEP3-				:
+amenu &CVS.Settin&gs.&Output.&Sorted			:call CVSSetSortOutput(1)<cr>
+amenu &CVS.Settin&gs.&Output.&Unsorted			:call CVSSetSortOutput(0)<cr>
 amenu &CVS.Settin&gs.-SEP1-				:
-amenu &CVS.Settin&gs.&Install\ updates			:call CVSInstallUpdates()<cr>
-amenu &CVS.Settin&gs.Download\ &updates			:call CVSDownloadUpdates()<cr>
-amenu &CVS.Settin&gs.Install\ buffer\ as\ &help		:call CVSInstallAsHelp()<cr>
-amenu &CVS.Settin&gs.Install\ buffer\ as\ &plugin	:call CVSInstallAsPlugin()<cr>
+amenu &CVS.Settin&gs.&Install.&Install\ updates		:call CVSInstallUpdates()<cr>
+amenu &CVS.Settin&gs.&Install.&Download\ updates		:call CVSDownloadUpdates()<cr>
+amenu &CVS.Settin&gs.&Install.Install\ buffer\ as\ &help	:call CVSInstallAsHelp()<cr>
+amenu &CVS.Settin&gs.&Install.Install\ buffer\ as\ &plugin	:call CVSInstallAsPlugin()<cr>
 amenu &CVS.Director&y.&Add				:call CVSSetForceDir(1)<cr>:call CVSadd()<cr>
 amenu &CVS.Director&y.Comm&it				:call CVSSetForceDir(1)<cr>:call CVScommit()<cr>
+amenu &CVS.Director&y.Lo&cal\ Status			:call CVSSetForceDir(1)<cr>:call CVSLocalStatus()<cr>
 amenu &CVS.Director&y.S&hort\ Status			:call CVSSetForceDir(1)<cr>:call CVSshortstatus()<cr>
 amenu &CVS.Director&y.&Status				:call CVSSetForceDir(1)<cr>:call CVSstatus()<cr>
 amenu &CVS.Director&y.&Log				:call CVSSetForceDir(1)<cr>:call CVSlog()<cr>
 amenu &CVS.Director&y.&Query\ Update			:call CVSSetForceDir(1)<cr>:call CVSqueryupdate()<cr>
 amenu &CVS.Director&y.&Update				:call CVSSetForceDir(1)<cr>:call CVSupdate()<cr>
 amenu &CVS.Director&y.Re&move\ from\ rep.		:call CVSSetForceDir(1)<cr>:call CVSremove()<cr>
-amenu &CVS.&Keyword.&Author  				a$Author<esc>a$<esc>
-amenu &CVS.&Keyword.&Date    				a$Date<esc>a$<esc>
-amenu &CVS.&Keyword.&Header  				a$Header<esc>a$<esc>
-amenu &CVS.&Keyword.&Id      				a$Id<esc>a$<esc>
-amenu &CVS.&Keyword.&Name    				a$Name<esc>a$<esc>
-amenu &CVS.&Keyword.Loc&ker  				a$Locker<esc>a$<esc>
-amenu &CVS.&Keyword.&Log     				a$Log<esc>a$<esc>
-amenu &CVS.&Keyword.RCS&file 				a$RCSfile<esc>a$<esc>
+amenu &CVS.&Keyword.&Author				a$Author<esc>a$<esc>
+amenu &CVS.&Keyword.&Date				a$Date<esc>a$<esc>
+amenu &CVS.&Keyword.&Header				a$Header<esc>a$<esc>
+amenu &CVS.&Keyword.&Id					a$Id<esc>a$<esc>
+amenu &CVS.&Keyword.&Name				a$Name<esc>a$<esc>
+amenu &CVS.&Keyword.Loc&ker				a$Locker<esc>a$<esc>
+amenu &CVS.&Keyword.&Log				a$Log<esc>a$<esc>
+amenu &CVS.&Keyword.RCS&file				a$RCSfile<esc>a$<esc>
 amenu &CVS.&Keyword.&Re&vision				a$Revision<esc>a$<esc>
-amenu &CVS.&Keyword.&Source  				a$Source<esc>a$<esc>
-amenu &CVS.&Keyword.S&tate   				a$State<esc>a$<esc>
+amenu &CVS.&Keyword.&Source				a$Source<esc>a$<esc>
+amenu &CVS.&Keyword.S&tate				a$State<esc>a$<esc>
 amenu &CVS.-SEP1-					:
 amenu &CVS.Ad&min.log&in				:call CVSlogin()<cr>
 amenu &CVS.Ad&min.log&out				:call CVSlogout()<cr>
@@ -109,6 +133,7 @@ amenu &CVS.Histo&ry					:call CVShistory()<cr>
 amenu &CVS.&Log						:call CVSlog()<cr>
 amenu &CVS.&Status					:call CVSstatus()<cr>
 amenu &CVS.S&hort\ Status				:call CVSshortstatus()<cr>
+amenu &CVS.Lo&cal\ Status				:call CVSLocalStatus()<cr>
 amenu &CVS.-SEP3-					:
 amenu &CVS.E&xtra.&Update\ to\ revision			:call CVSupdatetorev()<cr>
 amenu &CVS.E&xtra.&Merge\ revision			:call CVSupdatemergerev()<cr>
@@ -126,80 +151,73 @@ amenu &CVS.&Add						:call CVSadd()<cr>
 amenu &CVS.Comm&it					:call CVScommit()<cr>
 amenu &CVS.Im&port					:call CVSimport()<cr>
 
-" key mappings : <Leader> (mostly '\' ?), then same as menu hotkeys
-" e.g. <ALT>ci = \ci = CVS.Commit
-if v:version >= 600
-  map <Leader>cf	:call CVSShowInfo()<cr>
-  map <Leader>cgd	:call CVSToggleForceDir()<cr>
-  map <Leader>cgq	:call CVSToggleQueryRevision()<cr>
-  map <Leader>cgo	:call CVSToggleOutput()<cr>
-  map <Leader>cgs	:call CVSToggleSortOutput()<cr>
-  map <Leader>cgi	:call CVSInstallUpdates()<cr>
-  map <Leader>cgu	:call CVSDownloadUpdates()<cr>
-  map <Leader>cgh	:call CVSInstallAsHelp()<cr>
-  map <Leader>cgp	:call CVSInstallAsPlugin()<cr>
-  map <Leader>cya	:call CVSSetForceDir(1)<cr>:call CVSadd()<cr>
-  map <Leader>cyi	:call CVSSetForceDir(1)<cr>:call CVScommit()<cr>
-  map <Leader>cyh	:call CVSSetForceDir(1)<cr>:call CVSshortstatus()<cr>
-  map <Leader>cys	:call CVSSetForceDir(1)<cr>:call CVSstatus()<cr>
-  map <Leader>cyl	:call CVSSetForceDir(1)<cr>:call CVSlog()<cr>
-  map <Leader>cyq	:call CVSSetForceDir(1)<cr>:call CVSqueryupdate()<cr>
-  map <Leader>cyu	:call CVSSetForceDir(1)<cr>:call CVSupdate()<cr>
-  map <Leader>cym	:call CVSSetForceDir(1)<cr>:call CVSremove()<cr>
-  map <Leader>cka	a$Author<esc>a$<esc>
-  map <Leader>ckd	a$Date<esc>a$<esc>
-  map <Leader>ckh	a$Header<esc>a$<esc>
-  map <Leader>cki	a$Id<esc>a$<esc>
-  map <Leader>ckn	a$Name<esc>a$<esc>
-  map <Leader>ckk	a$Locker<esc>a$<esc>
-  map <Leader>ckl	a$Log<esc>a$<esc>
-  map <Leader>ckf	a$RCSfile<esc>a$<esc>
-  map <Leader>ckv	a$Revision<esc>a$<esc>
-  map <Leader>cks	a$Source<esc>a$<esc>
-  map <Leader>ckt	a$State<esc>a$<esc>
-  map <Leader>cmi	:call CVSlogin()<cr>
-  map <Leader>cmo	:call CVSlogout()<cr>
-  map <Leader>cem	:call CVSremove()<cr>
-  map <Leader>cel	:call CVSrelease()<cr>
-  map <Leader>ctc	:call CVStag()<cr>
-  map <Leader>ctr	:call CVStagremove()<cr>
-  map <Leader>ctb	:call CVSbranch()<cr>
-  map <Leader>cta	:call CVSrtag()<cr>
-  map <Leader>cto	:call CVSrtagremove()<cr>
-  map <Leader>cth	:call CVSrbranch()<cr>
-  map <Leader>cww	:call CVSwatchwatchers()<cr>
-  map <Leader>cwa	:call CVSwatchadd()<cr>
-  map <Leader>cwr	:call CVSwatchremove()<cr>
-  map <Leader>cwn	:call CVSwatchon()<cr>
-  map <Leader>cwf	:call CVSwatchoff()<cr>
-  map <Leader>cwe	:call CVSwatcheditors()<cr>
-  map <Leader>cwt	:call CVSwatchedit()<cr>
-  map <Leader>cwu	:call CVSwatchunedit()<cr>
-  map <Leader>cd	:call CVSdiff()<cr>
-  map <Leader>cn	:call CVSannotate()<cr>
-  map <Leader>cr	:call CVShistory()<cr>
-  map <Leader>cl	:call CVSlog()<cr>
-  map <Leader>cs	:call CVSstatus()<cr>
-  map <Leader>ch	:call CVSshortstatus()<cr>
-  map <Leader>cxu	:call CVSupdatetorev()<cr>
-  map <Leader>cxm	:call CVSupdatemergerev()<cr>
-  map <Leader>cxd	:call CVSupdatemergediff()<cr>
-  map <Leader>cxg	:call CVSGet()<cr>
-  map <Leader>cxp	:call CVSGet('','','io')<cr>
-  map <Leader>co	:call CVScheckout()<cr>
-  map <Leader>cq	:call CVSqueryupdate()<cr>
-  map <Leader>cu	:call CVSupdate()<cr>
-  map <Leader>cv	:call CVSrevertchanges()<cr>
-  map <Leader>ca	:call CVSadd()<cr>
-  map <Leader>ci	:call CVScommit()<cr>
-  map <Leader>cp	:call CVSimport()<cr>
-endif
+"" create key mappings from this script
+"" key mappings : <Leader> (mostly '\' ?), then same as menu hotkeys
+"" e.g. <ALT>ci = \ci = CVS.Commit
+function! CVSMakeLeaderMapping()
+  let cvsmenu=expand("$VIM").s:sep.'plugin'.s:sep.'cvsmenu.vim'
+  silent! call CVSMappingFromMenu(cvsmenu,',')
+  unlet cvsmenu
+endfunction
+
+function! CVSMappingFromMenu(filename,...)
+  if !filereadable(a:filename)
+    return
+  endif
+  if a:0 == 0
+    if v:version < 600
+      let leader = '\'
+    else
+      let leader = '<Leader>'
+    endif
+  else
+    let leader = a:1
+  endif
+  " create mappings from &-chars
+  new
+  exec 'read '.a:filename
+  " leave only amenu defs
+  exec 'g!/^\s*amenu/d'
+  " delete separators and blank lines
+  exec 'g/\.-SEP/d'
+  exec 'g/^$/d'
+  " count entries
+  let entries=line("$")
+  " extract menu entries, put in @m
+  exec '%s/^\s*amenu\s\([^'."\t".']*\).\+/\1/eg' 
+  exec '%y m'
+  " extract mappings from '&'
+  exec '%s/&\(\w\)[^&]*/\l\1/eg'
+  " create cmd, delete to @k
+  exec '%s/^\(.*\)$/nmap '.leader.'\1 :em /eg' 
+  exec '%d k'
+  " restore menu, delete '&'
+  normal "mP
+  exec '%s/&//eg'
+  " visual block inserts failed, when called from script (vim60at)
+  " append keymappings
+  normal G"kP
+  " merge keys/commands, execute
+  let curlin=0
+  while curlin < entries
+    let curlin = curlin + 1
+    call setline(curlin,getline(curlin + entries).getline(curlin).'<cr>')
+    exec getline(curlin)
+  endwhile
+  set nomodified
+  bdelete
+endfunction
 
 "-----------------------------------------------------------------------------
 " show cvs info
 "-----------------------------------------------------------------------------
-
-function! CVSShowInfo()
+" Param : ToBuffer (bool)
+function! CVSShowInfo(...)
+  if a:0 == 0
+    let tobuf = 0
+  else
+    let tobuf = a:1
+  endif
   exec 'cd '.expand('%:p:h')
   " show CVS info from directory
   let cvsroot='CVS'.s:sep.'Root'
@@ -213,11 +231,13 @@ function! CVSShowInfo()
   unlet cvsroot cvsrepository
   " show settings
   new
-  let @i = ''
+  let regbak=@z
+  let @z = ''
+    \."\n\"CVSmenu $Revision: 1.42 $"
     \."\n\"Current directory : ".expand('%:p:h')
     \."\n\"Current Root : ".root
     \."\n\"Current Repository : ".repository
-    \."\n"
+    \."\n\""
     \."\n\"\t\t\t set environment var to cvsroot"
     \."\nlet $CVSROOT=\'".$CVSROOT."\'"
     \."\n\"\t\t\t set environment var to rsh/ssh"
@@ -232,10 +252,12 @@ function! CVSShowInfo()
     \."\nlet g:CVSforcedirectory = ".g:CVSforcedirectory
     \."\n\"\t\t\t Query for revisions (0:no 1:yes)"
     \."\nlet g:CVSqueryrevision = ".g:CVSqueryrevision
-    \."\n\"\t\t\t Toggle output (0:buffer 1:statusline)"
+    \."\n\"\t\t\t Toggle output (0:buffer 1:statusline 2:autoswitch)"
     \."\nlet g:CVSdumpandclose = ".g:CVSdumpandclose
     \."\n\"\t\t\t Toggle sorting output (0:no sorting)"
     \."\nlet g:CVSsortoutput = ".g:CVSsortoutput
+    \."\n\"\t\t\t Show extended output only if error"
+    \."\nlet g:CVScompressoutput = ".g:CVScompressoutput
     \."\n\"\t\t\t show cvs version"
     \."\nexec(\':!".$CVSCMD." -v\')"
     \."\n"
@@ -243,12 +265,12 @@ function! CVSShowInfo()
     \."\n\" Change above values to your needs."
     \."\n\" To execute a line, put the cursor on it"
     \."\n\" and press <shift-cr> or <DoubleClick>"
-    \."\n\" CVSmenu $Revision: 1.37 $"
     \."\n\" Site: http://ezytools.sf.net/VimTools"
-  normal "iP
+  normal "zP
+  let @z=regbak
   normal dd
-  if g:CVSdumpandclose > 0
-    exec '4,$g/^"/d'
+  if tobuf == 0
+    exec '5,$g/^"/d'
     normal dddd
     call CVSDumpAndClose()
   else
@@ -258,7 +280,7 @@ function! CVSShowInfo()
     set syntax=vim
     set nomodified
   endif
-  unlet root repository
+  unlet root repository tobuf 
 endfunction
 
 "-----------------------------------------------------------------------------
@@ -294,6 +316,15 @@ function! CVSUpdateSyntax()
   hi link cvsstatusConflict    	Warningmsg
   hi link cvsstatusUnknown    	Comment
 
+  syn match cvslocalstatusUnknown	'^unknown:.*'
+  syn match cvslocalstatusUnchanged	'^unchanged:.*'
+  syn match cvslocalstatusMissing	'^missing:.*'
+  syn match cvslocalstatusModified	'^modified:.*'
+  hi link cvslocalstatusUnknown		Comment
+  hi link cvslocalstatusUnchanged	Type
+  hi link cvslocalstatusMissing		Identifier
+  hi link cvslocalstatusModified	Constant
+
   if !filereadable($VIM.s:sep.'syntax'.s:sep.'rcslog')
     syn match cvslogRevision	'^revision.*$'
     syn match cvslogFile	'^RCS file:.*'
@@ -305,8 +336,10 @@ function! CVSUpdateSyntax()
 endfunction
 
 function! CVSAddConflictSyntax()
-  syn region CVSConflictOrg start="^<<<<<<<" end="^===="
-  syn region CVSConflictNew start="===" end="^>>>>>>>.*"
+  syn region CVSConflictOrg start="^<<<<<<<" end="^====" contained
+  syn region CVSConflictNew start="===$" end="^>>>>>>>" contained
+  syn region CVSConflict start="^<<<<<<<" end=">>>>>>>.*" contains=CVSConflictOrg,CVSConflictNew keepend
+"  hi link CVSConflict Special
   hi link CVSConflictOrg DiffChange
   hi link CVSConflictNew DiffAdd
 endfunction
@@ -326,8 +359,8 @@ function! CVSMakeRW()
   endif
 endfunction
 
-function! CVSUpdateMapping()
 " output window: open file under cursor by <doubleclick> or <shift-cr>
+function! CVSUpdateMapping()
   nmap <buffer> <2-LeftMouse> 0<C-Right>
   nmap <buffer> <S-CR> 0<C-Right>
   nmap <buffer> q :bd!<cr>
@@ -339,16 +372,7 @@ endfunction
 
 " move all lines matching "searchstr" to top
 function! CVSMoveToTop(searchstr)
-  let @z=''
-  normal gg
-  let v:errmsg=''
-  while (v:errmsg=='')
-    silent! exec '/'.a:searchstr
-    if v:errmsg==''
-      normal "Zddk
-    endif
-  endwhile
-  normal gg"ZP
+  silent exec 'g/'.a:searchstr.'/m0'
 endfunction
 
 " only called by CVSShortStatus
@@ -363,19 +387,19 @@ function! CVSSortStatusOutput()
   call CVSMoveToTop('Status: Locally Added$')
   call CVSMoveToTop('Status: Locally Modified$')
   call CVSMoveToTop('Status: File had conflicts on merge$')
-  " insert last blank line (moving with '{}')
-  let v:errmsg=''
-  silent! exec '/Status: Up-to-date$'
-  if v:errmsg==''
-    normal O
-  endif
 endfunction
 
 " called by CVSDoCommand
 function! CVSSortOutput()
   " allow changes
   call CVSMakeRW()
-  call CVSMoveToTop('^? ')	" unknown	- why does it beep ???
+  " localstatus
+  call CVSMoveToTop('^unknown:')
+  call CVSMoveToTop('^unchanged:')
+  call CVSMoveToTop('^missing:')
+  call CVSMoveToTop('^modified:')
+  " org cvs
+  call CVSMoveToTop('^? ')	" unknown
   call CVSMoveToTop('^T ')	" tag
   call CVSMoveToTop('^D ')	" delete
   call CVSMoveToTop('^N ')	" new
@@ -425,62 +449,60 @@ function! CVSSetForceDir(value)
   endif
 endfunction
 
-" switch scope : file or directory
-function! CVSToggleForceDir()
-  if g:CVSforcedirectory > 0
-    call CVSSetForceDir(0)
-  else
-    call CVSSetForceDir(2)
-  endif
-endfunction
-
-" enable/disable revs/branchs queries
-function! CVSToggleQueryRevision()
-  if g:CVSqueryrevision > 0
-    let g:CVSqueryrevision = 0
-    echo 'CVS:Not asking for revisions'
-  else
-    let g:CVSqueryrevision = 1
-    echo 'CVS:Enable revision queries'
-  endif
-endfunction
-
-" Dump output to statusline, close output buffer
-function! CVSToggleDumpAndClose()
-  let g:CVSdumpandclose = 1 - g:CVSdumpandclose
-  if g:CVSdumpandclose > 0
+" Set output to statusline, close output buffer
+function! CVSSetDumpAndClose(value)
+  if a:value > 1
+    echo 'CVS:output to status(file) and buffer(dir)'
+  elseif a:value > 0
     echo 'CVS:output to statusline'
   else
     echo 'CVS:output to buffer'
   endif
+  let g:CVSdumpandclose = a:value
 endfunction
-" Dump output to statusline, close output buffer
-function! CVSDumpAndClose()
-  let endline=line("$")
-  let curline=0
-  while curline < endline
-    let curline = curline + 1
-    echo getline(curline)
-  endwhile
-  set nomodified
-  close
+
+" enable/disable revs/branchs queries
+function! CVSSetQueryRevision(value)
+  if a:value > 0
+    echo 'CVS:Enabled revision queries'
+  else
+    echo 'CVS:Not asking for revisions'
+  endif
+  let g:CVSqueryrevision = a:value
 endfunction
 
 " Sort output (group conflicts,updates,...)
-function! CVSToggleSortOutput()
-  let g:CVSsortoutput = 1 - g:CVSsortoutput
-  if g:CVSsortoutput > 0
+function! CVSSetSortOutput(value)
+  if a:value > 0
     echo 'CVS:sorting output'
   else
     echo 'CVS:unsorted output'
   endif
+  let g:CVSsortoutput = value
 endfunction
+
+
+" compress output to one line
+function! CVSSetCompressOutput(value)
+  if a:value > 0
+    echo 'CVS:compressed output'
+  else
+    echo 'CVS:full output'
+  endif
+  let g:CVScompressoutput = value
+endfunction
+
+"#############################################################################
+" CVS commands
+"#############################################################################
 
 "-----------------------------------------------------------------------------
 " CVS call
 "-----------------------------------------------------------------------------
 
 function! CVSDoCommand(cmd,...)
+  " needs to be called from orgbuffer
+  let isfile = CVSUsesFile()
   " change to buffers directory
   exec 'cd '.expand('%:p:h')
   " get file/directory to work on (if not given)
@@ -493,18 +515,37 @@ function! CVSDoCommand(cmd,...)
   else
     let filename = a:1
   endif
-  let tmpnam=tempname()
-  silent! exec '!'.$CVSCMD.' '.$CVSOPT.' '.a:cmd.' '.$CVSCMDOPT.' '.filename.'> '.tmpnam
+  let regbak=@z
+  let @z=system($CVSCMD.' '.$CVSOPT.' '.a:cmd.' '.$CVSCMDOPT.' '.filename)
   new
-  exec 'read '.tmpnam
-  normal ggdd
-  if delete (tmpnam)==1
-    echo 'CVS: could not delete temp:'.tmpnam
-  endif
+  normal "zP
+  call CVSProcessOutput(isfile, filename, a:cmd)
+  let @z=regbak
+  unlet filename
+endfunction
+
+" also jumped in by CVSLocalStatus
+function! CVSProcessOutput(isfile,filename,cmd)
+  " delete leading and trainling blank lines
+  while (getline(1) == '') && (line("$")>1)
+    exec '0d'
+  endwhile
+  while (getline("$") == '') && (line("$")>1)
+    exec '$d'
+  endwhile
   " group conflicts, updates, ....
   if g:CVSsortoutput > 0
     call CVSSortOutput()
   endif
+  " compress output ?
+  if g:CVScompressoutput > 0
+    if (g:CVSdumpandclose > 0) && a:isfile
+      call CVSCompressOutput(a:cmd)
+    endif
+  endif
+  " move to top
+  normal gg
+  set nowrap
   " reset single shot flag
   if g:CVSforcedirectory==1
     let g:CVSforcedirectory = 0
@@ -512,15 +553,40 @@ function! CVSDoCommand(cmd,...)
   call CVSMakeRO()
   call CVSUpdateMapping()
   call CVSUpdateSyntax()
-  if g:CVSdumpandclose > 0
+  if (g:CVSdumpandclose == 1) || ((g:CVSdumpandclose == 2) && a:isfile)
     call CVSDumpAndClose()
   endif
-  unlet tmpnam filename
+endfunction
+
+" return: 1=file 0=dir
+function! CVSUsesFile()
+  let filename=expand("%:p:t")
+  if    ((g:CVSforcedirectory == 0) && (filename != ''))
+   \ || ((g:CVSforcedirectory > 0) && (filename == ''))
+    return 1
+  else
+    return 0
+  endif
+  unlet filename
+endfunction
+
+" compress output
+function! CVSCompressOutput(cmd)
+  " commit
+  if match(a:cmd,"commit") > -1
+    let v:errmsg = ''
+    silent! exec '/^cvs \[commit aborted]:'
+    " only compress, if no error found
+    if v:errmsg != ''
+      silent! exec 'g!/^new revision:/d'
+    endif
+  endif
 endfunction
 
 "#############################################################################
 " following commands read from STDIN. Call CVS directly
 "#############################################################################
+
 "-----------------------------------------------------------------------------
 " CVS login / logout (password prompt)
 "-----------------------------------------------------------------------------
@@ -573,13 +639,20 @@ function! CVSrelease()
   unlet localtoo releasedir
 endfunction
 
+"#############################################################################
+" from here : use CVSDoCommand wrapper
+"#############################################################################
+
 "-----------------------------------------------------------------------------
 " CVS diff (output needed)
 "-----------------------------------------------------------------------------
 
 function! CVSdiff()
   exec 'cd '.expand('%:p:h')
-  let tmpnam=tempname()
+  let outputbak = g:CVSdumpandclose
+  let g:CVSdumpandclose = 0
+  " tempname() would be deleted before diff (linux)!
+  let tmpnam=expand("%").'.dif'.localtime()
   " query revision (if wanted)
   if g:CVSqueryrevision > 0
     let rev=input('Revision (optional):')
@@ -589,26 +662,31 @@ function! CVSdiff()
   if rev!=''
     let rev='-r '.rev.' '
   endif
-  " jump to next/prev diff : <tab> / <s-tab>
-  map <buffer> <tab> ]c
-  map <buffer> <s-tab> [c
+  call CVSDoCommand('update -p '.rev)
+  redraw
+  " delete stderr ('checking out...')
+  call CVSStripHeader()
+  call CVSMakeRO()
+  " x! did not write before diffing (linux)!
+  exec "w! ".tmpnam
+  bdelete
   wincmd _
-  " We need CVS output. -> dont use CVSDoCommand
-  silent! exec '!'.$CVSCMD.' '.$CVSOPT.' update -p '.rev.expand('%:p:t').' '.$CVSCMDOPT.'> '.tmpnam
+  redraw
   if v:version<600
     exec 'diffsplit '.tmpnam
   else
     exec 'vertical diffsplit '.tmpnam
   endif
+  let dummy=delete(tmpnam)
   " jump to next diff (other buffer)
   map <buffer> <tab> ]c
   map <buffer> <s-tab> [c
+  let g:CVSdumpandclose = outputbak
+  unlet outputbak
   unlet tmpnam rev
+  "dummy
 endfunction
 
-"#############################################################################
-" from here : use CVSDoCommand wrapper
-"#############################################################################
 "-----------------------------------------------------------------------------
 " CVS annotate / log / status / history
 "-----------------------------------------------------------------------------
@@ -918,10 +996,6 @@ function! CVSadd()
     return
   endif
   call CVSDoCommand('add -m "'.message.'"')
-  " Is there any output to stdout ? I only receive stderr... we may close
-  if !&modified
-    bdelete
-  endif
   unlet message
 endfunction
 
@@ -1001,6 +1075,10 @@ function! CVScheckout()
   unlet destdir module rev
 endfunction
 
+"#############################################################################
+" extended commands
+"#############################################################################
+
 "-----------------------------------------------------------------------------
 " compound/complex commands
 "-----------------------------------------------------------------------------
@@ -1023,53 +1101,69 @@ endfunction
 
 " get status info, compress it (one line/file), sort by status
 function! CVSshortstatus()
-  " prevent CVSupdate from closing buffer
-  let savedump=g:CVSdumpandclose
+  let isfile = CVSUsesFile()
+  " save flags
+  let filename = expand("%:p:t")
+  let savedump = g:CVSdumpandclose
+  let forcedirbak = g:CVSforcedirectory
+  " output needed
   let g:CVSdumpandclose=0
-  " prevent flag from being reset
-  if g:CVSforcedirectory==1
-    let savedironce=1
-    let g:CVSforcedirectory=2
-  else
-    let savedironce=0
-  endif
   call CVSstatus()
   call CVSMakeRW()
   call CVSCompressStatus()
-  call CVSSortStatusOutput()
+  if g:CVSsortoutput > 0
+    call CVSSortStatusOutput()
+  endif
   normal gg
   call CVSMakeRO()
-  if savedironce==1
-    let g:CVSforcedirectory=1
+  " restore flags
+  let g:CVSdumpandclose = savedump
+  if forcedirbak == 1
+    let g:CVSforcedirectory = 0
+  else
+    let g:CVSforcedirectory = forcedirbak
   endif
-  " restore output flag, close if needed
-  let g:CVSdumpandclose=savedump
-  if g:CVSdumpandclose>0
+  if   (g:CVSdumpandclose == 1) || ((g:CVSdumpandclose == 2) && isfile)
     call CVSDumpAndClose()
   endif
-  unlet savedironce savedump
+  unlet savedump forcedirbak filename isfile
 endfunction
 
 "-----------------------------------------------------------------------------
 " some tools
 "-----------------------------------------------------------------------------
 
+" Dump output to statusline, close output buffer
+function! CVSDumpAndClose()
+  " collect in reg. z first, otherwise func
+  " will terminate, if user stops output with "q"
+  let curlin=1
+  let regbak=@z
+  let @z = getline(curlin)
+  while curlin < line("$")
+    let curlin = curlin + 1
+    let @z = @z . "\n" . getline(curlin)
+  endwhile
+  " appends \n on winnt
+  "exec ":1,$y z"
+  set nomodified
+  close
+  redraw
+  " statusline may be cleared otherwise
+  echo @z
+  let @z=regbak
+endfunction
+
 " leave only leading line with status info (for CVSShortStatus)
 function! CVSCompressStatus()
-  let curline=1
-  while curline < line('$')
-    let str=strpart(getline(curline),0,5)
-    " Leave only lines starting with 'File:'
-    if (str!='File:')
-      " move to that line
-      exec ':'.curline
-      " delete it
-      exec ':d'
-    else
-      " next line
-      let curline = curline + 1
-    endif
-  endwhile
+  exec 'g!/^File:\|?/d'
+endfunction
+
+" delete stderr ('checking out...')
+" CVS checkout ends with ***************(15)
+function! CVSStripHeader()
+  call CVSMakeRW()
+  exec '1,/\*\{15}/d'
 endfunction
 
 "-----------------------------------------------------------------------------
@@ -1124,6 +1218,9 @@ function! CVSGet(...)
     endif
     " get file
     call CVSDoCommand('checkout -p',fn)
+    " delete stderr ('checking out...')
+    call CVSStripHeader()
+    set nomodified
     " logout
     if match(log,'o') > -1
       call CVSlogout()
@@ -1262,14 +1359,286 @@ function! CVSGetFolderNames()
 endfunction
 
 "-----------------------------------------------------------------------------
+" LocalStatus : read from CVS/Entries
+"-----------------------------------------------------------------------------
+
+function! CVSLocalStatus()
+  " needs to be called from orgbuffer
+  let isfile = CVSUsesFile()
+  " change to buffers directory
+  exec 'cd '.expand('%:p:h')
+  if g:CVSforcedirectory>0
+    let filename=expand('%:p:h')
+  else
+    let filename=expand('%:p:t')
+  endif
+  let regbak=@z
+  new
+  let @z = CVSCompare(filename)
+  normal "zP
+  call CVSProcessOutput(isfile, filename, '*localstatus')
+  let @z=regbak
+  unlet filename
+endfunction
+
+" get info from CVS/Entries about given/current buffer/dir
+function! CVSCompare(...)
+  " return, if no CVS dir
+  if !filereadable(s:CVSentries)
+    echo 'No '.s:CVSentries.' !'
+    return
+  endif
+  " eval params
+  if (a:0 == 1) && (a:1 != '')
+    if filereadable(a:1)
+      let filename = a:1
+      let dirname  = ''
+    else
+      let filename = ''
+      let dirname  = a:1
+    endif
+  else
+    let filename = expand("%:p:t")
+    let dirname  = expand("%:p:h")
+  endif
+  let result = ''
+  if filename == ''
+    let result = CVSGetLocalDirStatus(dirname)
+  else
+    let result = CVSGetLocalStatus(filename)
+  endif  " filename given
+  return result
+endfunction
+
+" get info from CVS/Entries about given file/current buffer
+function! CVSGetLocalStatus(...)
+  if a:0 == 0
+    let filename = expand("%:p:t")
+  else
+    let filename = a:1
+  endif
+  if filename == ''
+    return 'error:no filename'
+  endif
+  if a:0 > 1
+    let entry=a:2
+  else
+    let entry=CVSGetEntry(filename)
+  endif
+  if entry == ''
+    if isdirectory(filename)
+      let result = "unknown:   <DIR>\t".filename"
+    else
+      let result = 'unknown:   '.filename
+    endif
+  else
+    let entryver  = CVSSubstr(entry,'/',2)
+    let entryopt  = CVSSubstr(entry,'/',4)
+    let entrytag  = CVSSubstr(entry,'/',5)
+    let entrytime = CVStimeToStr(entry)
+    let info = filename."\t".entryver." ".entrytime." ".entryopt." ".entrytag
+    if !filereadable(filename)
+      if isdirectory(filename)
+        let result = 'directory: '.filename
+      else
+	if entry[0] == 'D'
+          let result = "missing:   <DIR>\t".filename
+	else
+          let result = 'missing:   '.info
+	endif
+      endif
+    else
+      if entrytime == CVSFiletimeToStr(filename)
+	let result = 'unchanged: '.info
+      else
+	let result = 'modified:  '.info
+      endif " time identical
+    endif " file exists
+  endif  " entry found
+  unlet entry
+  return result
+endfunction
+
+" get info on all files from CVS/Entries and given/current directory
+" opens CVS/Entries only once, passing each entryline to CVSGetLocalStatus
+function! CVSGetLocalDirStatus(...)
+  let zbak = @z
+  let ybak = @y
+  if a:0 == 0
+    let dirname = expand("%:p:h")
+  else
+    let dirname = a:1
+  endif
+  exec 'cd '.dirname
+  if has("unix")
+    let @z = glob("*")
+  else
+    let @z = glob("*.*")
+  endif
+  new
+  silent! exec 'read '.s:CVSentries
+  let entrycount = line("$") - 1
+  normal k"zP
+  if (line("$") == entrycount) && (getline(entrycount) == '')
+    " empty directory
+    set nomodified
+    return
+  endif
+  let filecount = line("$") - entrycount
+  " collect status of all found files in @y
+  let @y = ''
+  let curlin = 0
+  while (curlin < filecount)
+    let curlin = curlin + 1
+    let fn=getline(curlin)
+    if fn != 'CVS'
+      let search=escape(fn,'.')
+      let v:errmsg = ''
+      " find CVSEntry
+      silent! exec '/^D\?\/'.search.'\//'
+      if v:errmsg == ''
+        let entry = getline(".")
+	" clear found file from CVS/Entries
+	silent! exec 's/.*//eg'
+      else
+	let entry = ''
+      endif
+      " fetch info
+      let @y = @y . CVSGetLocalStatus(fn,entry) . "\n"
+    endif
+  endwhile
+  " process files from CVS/Entries
+  let curlin = filecount
+  while (curlin < line("$"))
+    let curlin = curlin + 1
+    let entry = getline(curlin)
+    let fn=CVSSubstr(entry,'/',1)
+    if fn != ''
+      let @y = @y . CVSGetLocalStatus(fn,entry) . "\n"
+    endif
+  endwhile
+  set nomodified
+  let result = @y
+  bdelete
+  let @z = zbak
+  let @y = ybak
+  unlet zbak ybak
+  return result
+endfunction
+
+" return info about filename from 'CVS/Entries'
+function! CVSGetEntry(filename)
+  let result = ''
+  if a:filename != ''
+    silent! exec 'split '.s:CVSentries
+    let v:errmsg = ''
+    let search=escape(a:filename,'.')
+    silent! exec '/^D\?\/'.search.'\//'
+    if v:errmsg == ''
+      let result = getline(".")
+    endif
+    set nomodified
+    bdelete
+  endif
+  return result
+endfunction
+
+" extract and convert timestamp from CVSEntryItem
+function! CVStimeToStr(entry)
+  return CVSAsctimeToStr(CVSSubstr(a:entry,'/',3))
+endfunction
+" get and convert filetime
+function! CVSFiletimeToStr(filename)
+  return strftime('%Y-%m-%d %H:%M:%S',getftime(a:filename))
+endfunction
+
+" entry format : ISO C asctime()
+" include local time zone info
+function! CVSAsctimeToStr(asctime)
+  let mon=strpart(a:asctime, 4,3)
+  let DD=CVSLeadZero(strpart(a:asctime, 8,2))
+  let hh=CVSLeadZero(strpart(a:asctime, 11,2) + $TIMEOFFSET)
+  let nn=CVSLeadZero(strpart(a:asctime, 14,2))
+  let ss=CVSLeadZero(strpart(a:asctime, 17,2))
+  let YY=strpart(a:asctime, 20,4)
+  let MM=CVSMonthIdx(mon)
+  let result = YY.'-'.MM.'-'.DD.' '.hh.':'.nn.':'.ss
+  unlet YY MM DD hh nn ss mon
+  return result
+endfunction
+
+" append a leading zero
+function! CVSLeadZero(value)
+  let nr=substitute(a:value,' ','','g') + 0
+  if (nr < 10)
+    let nr = '0' . nr
+  endif
+  return nr
+endfunction
+
+" return month (leading zero) from cleartext
+function! CVSMonthIdx(month)
+  if match(a:month,'Jan') > -1
+    return '01'
+  elseif match(a:month,'Feb') > -1
+    return '02'
+  elseif match(a:month,'Mar') > -1
+    return '03'
+  elseif match(a:month,'Apr') > -1
+    return '04'
+  elseif match(a:month,'May') > -1
+    return '05'
+  elseif match(a:month,'Jun') > -1
+    return '06'
+  elseif match(a:month,'Jul') > -1
+    return '07'
+  elseif match(a:month,'Aug') > -1
+    return '08'
+  elseif match(a:month,'Sep') > -1
+    return '09'
+  elseif match(a:month,'Oct') > -1
+    return '10'
+  elseif match(a:month,'Nov') > -1
+    return '11'
+  elseif match(a:month,'Dec') > -1
+    return '12'
+  else
+    return '00'
+endfunction
+
+" divide string by sep, return field[index] .start at 0.
+function! CVSSubstr(string,separator,index)
+  let sub = ''
+  let idx = 0
+  let bst = 0
+  while (bst < strlen(a:string)) && (idx <= a:index)
+    if a:string[bst] == a:separator
+      let idx = idx + 1
+    else
+      if (idx == a:index)
+        let sub = sub . a:string[bst]
+      endif
+    endif
+    let bst = bst + 1
+  endwhile
+  unlet idx bst
+  return sub
+endfunction
+
+"#############################################################################
+" Settings (2/2)
+"#############################################################################
+
+"-----------------------------------------------------------------------------
 " initialization
 "-----------------------------------------------------------------------------
 
 call CVSGetFolderNames()
 call CVSAddConflictSyntax()
+call CVSMakeLeaderMapping()
+
+au BufRead * call CVSAddConflictSyntax()
 
 if !exists("loaded_cvsmenu")
   let loaded_cvsmenu=1
 endif
-
-
