@@ -1,7 +1,8 @@
 " CVSmenu.vim : Vim menu for using CVS
 " Author : Thorsten Maerz <info@netztorte.de>
-" $Revision: 1.3.2.16 $
-" $Date: 2001/08/17 00:51:52 $
+" $Revision: 1.22 $
+" $Date: 2001/08/22 18:12:03 $
+" License : LGPL
 "
 " Tested with Vim 6.0
 " Primary site : http://ezytools.sourceforge.net/
@@ -114,6 +115,68 @@ amenu &CVS.&Add					:call CVSadd()<cr>
 amenu &CVS.Comm&it				:call CVScommit()<cr>
 amenu &CVS.Im&port				:call CVSimport()<cr>
 
+" key mappings : <Leader> (mostly '\' ?), then same as menu hotkeys
+" e.g. <ALT>ci = \ci = CVS.Commit
+if v:version >= 600
+  map <Leader>cf	:call CVSShowInfo()<cr>
+  map <Leader>cgd	:call CVSToggleForceDir()<cr>
+  map <Leader>cgq	:call CVSToggleQueryRevision()<cr>
+  map <Leader>cya	:call CVSSetForceDir(1)<cr>:call CVSadd()<cr>
+  map <Leader>cyi	:call CVSSetForceDir(1)<cr>:call CVScommit()<cr>
+  map <Leader>cyh	:call CVSSetForceDir(1)<cr>:call CVSshortstatus()<cr>
+  map <Leader>cys	:call CVSSetForceDir(1)<cr>:call CVSstatus()<cr>
+  map <Leader>cyl	:call CVSSetForceDir(1)<cr>:call CVSlog()<cr>
+  map <Leader>cyq	:call CVSSetForceDir(1)<cr>:call CVSqueryupdate()<cr>
+  map <Leader>cyu	:call CVSSetForceDir(1)<cr>:call CVSupdate()<cr>
+  map <Leader>cym	:call CVSSetForceDir(1)<cr>:call CVSremove()<cr>
+  map <Leader>cka	a$Author<esc>a$<esc>
+  map <Leader>ckd	a$Date<esc>a$<esc>
+  map <Leader>ckh	a$Header<esc>a$<esc>
+  map <Leader>cki	a$Id<esc>a$<esc>
+  map <Leader>ckn	a$Name<esc>a$<esc>
+  map <Leader>ckk	a$Locker<esc>a$<esc>
+  map <Leader>ckl	a$Log<esc>a$<esc>
+  map <Leader>ckf	a$RCSfile<esc>a$<esc>
+  map <Leader>ckv	a$Revision<esc>a$<esc>
+  map <Leader>cks	a$Source<esc>a$<esc>
+  map <Leader>ckt	a$State<esc>a$<esc>
+  map <Leader>cmi	:call CVSlogin()<cr>
+  map <Leader>cmo	:call CVSlogout()<cr>
+  map <Leader>cem	:call CVSremove()<cr>
+  map <Leader>cel	:call CVSrelease()<cr>
+  map <Leader>ctc	:call CVStag()<cr>
+  map <Leader>ctr	:call CVStagremove()<cr>
+  map <Leader>ctb	:call CVSbranch()<cr>
+  map <Leader>cta	:call CVSrtag()<cr>
+  map <Leader>cto	:call CVSrtagremove()<cr>
+  map <Leader>cth	:call CVSrbranch()<cr>
+  map <Leader>cww	:call CVSwatchwatchers()<cr>
+  map <Leader>cwa	:call CVSwatchadd()<cr>
+  map <Leader>cwr	:call CVSwatchremove()<cr>
+  map <Leader>cwn	:call CVSwatchon()<cr>
+  map <Leader>cwf	:call CVSwatchoff()<cr>
+  map <Leader>cwe	:call CVSwatcheditors()<cr>
+  map <Leader>cwt	:call CVSwatchedit()<cr>
+  map <Leader>cwu	:call CVSwatchunedit()<cr>
+  map <Leader>cd	:call CVSdiff()<cr>
+  map <Leader>cn	:call CVSannotate()<cr>
+  map <Leader>cr	:call CVShistory()<cr>
+  map <Leader>cl	:call CVSlog()<cr>
+  map <Leader>cs	:call CVSstatus()<cr>
+  map <Leader>ch	:call CVSshortstatus()<cr>
+  map <Leader>cxc	:call CVSAddConflictSyntax()<cr>
+  map <Leader>cxu	:call CVSupdatetorev()<cr>
+  map <Leader>cxm	:call CVSupdatemergerev()<cr>
+  map <Leader>cxd	:call CVSupdatemergediff()<cr>
+  map <Leader>co	:call CVScheckout()<cr>
+  map <Leader>cq	:call CVSqueryupdate()<cr>
+  map <Leader>cu	:call CVSupdate()<cr>
+  map <Leader>cv	:call CVSrevertchanges()<cr>
+  map <Leader>ca	:call CVSadd()<cr>
+  map <Leader>ci	:call CVScommit()<cr>
+  map <Leader>cp	:call CVSimport()<cr>
+endif
+
 "-----------------------------------------------------------------------------
 " show cvs info
 "-----------------------------------------------------------------------------
@@ -172,7 +235,7 @@ function! CVSShowInfo()
   call append('$',"\" Change above values to your needs.")
   call append('$',"\" To execute a line, put the cursor on it")
   call append('$',"\" and press <shift-cr> or <DoubleClick>")
-  call append('$',"\" CVSmenu $Revision: 1.3.2.16 $")
+  call append('$',"\" CVSmenu $Revision: 1.22 $")
   call append('$',"\" Site: http://ezytools.sf.net/VimTools")
   normal dd
   map <buffer> q :bd!<cr>
