@@ -1,7 +1,7 @@
 " CVSmenu.vim : Vim menu for using CVS
 " Author : Thorsten Maerz <info@netztorte.de>
-" $Revision: 1.30 $
-" $Date: 2001/08/27 22:35:52 $
+" $Revision: 1.31 $
+" $Date: 2001/08/27 23:26:31 $
 " License : LGPL
 "
 " Tested with Vim 6.0
@@ -230,7 +230,7 @@ function! CVSShowInfo()
     \."\n\" Change above values to your needs."
     \."\n\" To execute a line, put the cursor on it"
     \."\n\" and press <shift-cr> or <DoubleClick>"
-    \."\n\" CVSmenu $Revision: 1.30 $"
+    \."\n\" CVSmenu $Revision: 1.31 $"
     \."\n\" Site: http://ezytools.sf.net/VimTools"
   normal "iP
   normal dd
@@ -1056,8 +1056,11 @@ endfunction
 function! CVSInstallUpdates()
   call CVSDownloadUpdates()
   call CVSInstallAsHelp('cvsmenu.txt')
-  close
+  " force switch buffer. (closing is cached)
+  normal 
   call CVSInstallAsPlugin('cvsmenu.vim')
+  normal t
+  close
   close
 endfunction
 
