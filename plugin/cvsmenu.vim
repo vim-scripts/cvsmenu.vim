@@ -1,7 +1,7 @@
 " CVSmenu.vim : Vim menu for using CVS
 " Author : Thorsten Maerz <info@netztorte.de>
-" $Revision: 1.31 $
-" $Date: 2001/08/27 23:26:31 $
+" $Revision: 1.37 $
+" $Date: 2001/08/28 18:34:05 $
 " License : LGPL
 "
 " Tested with Vim 6.0
@@ -9,7 +9,6 @@
 " Located in the "VimTools" section
 "
 " TODO: Better support for additional params
-" TODO: Sort more logs (e.g. conflicts)
 
 if exists("loaded_cvsmenu")
   aunmenu CVS
@@ -32,14 +31,17 @@ endif
 if !exists("g:CVSforcedirectory")
   let g:CVSforcedirectory = 0		" 0:off 1:once 2:forever
 endif
-if !exists("g:CVSupdatequeryonly")
-  let g:CVSupdatequeryonly = 0		" 0:really update 1:be a simulant
-endif
 if !exists("g:CVSqueryrevision")
   let g:CVSqueryrevision = 0		" 0:fast update 1:query for revisions
 endif
 if !exists("g:CVSdumpandclose")
   let g:CVSdumpandclose = 0		" 1:put output to statusline and close output window
+endif
+if !exists("g:CVSsortoutput")
+  let g:CVSsortoutput = 1		" sort cvs output (group conflicts,updates,...)
+endif
+if !exists("s:CVSupdatequeryonly")
+  let s:CVSupdatequeryonly = 0		" 0:really update 1:be a simulant
 endif
 
 let s:cvsmenuhttp="http://cvs.sf.net/cgi-bin/viewcvs.cgi/~checkout~/ezytools/VimTools/"
@@ -54,6 +56,7 @@ amenu &CVS.in&fo  	      				:call CVSShowInfo()<cr>
 amenu &CVS.Settin&gs.Toggle\ buffer/&dir		:call CVSToggleForceDir()<cr>
 amenu &CVS.Settin&gs.Toggle\ revision\ &queries		:call CVSToggleQueryRevision()<cr>
 amenu &CVS.Settin&gs.Toggle\ &output			:call CVSToggleDumpAndClose()<cr>
+amenu &CVS.Settin&gs.Toggle\ &sort\ output		:call CVSToggleSortOutput()<cr>
 amenu &CVS.Settin&gs.-SEP1-				:
 amenu &CVS.Settin&gs.&Install\ updates			:call CVSInstallUpdates()<cr>
 amenu &CVS.Settin&gs.Download\ &updates			:call CVSDownloadUpdates()<cr>
@@ -111,6 +114,7 @@ amenu &CVS.E&xtra.&Update\ to\ revision			:call CVSupdatetorev()<cr>
 amenu &CVS.E&xtra.&Merge\ revision			:call CVSupdatemergerev()<cr>
 amenu &CVS.E&xtra.Merge\ revision\ &diffs		:call CVSupdatemergediff()<cr>
 amenu &CVS.E&xtra.-SEP1-				:
+amenu &CVS.E&xtra.CVS\ &Links				:call CVSOpenLinks()<cr>
 amenu &CVS.E&xtra.&Get\ file				:call CVSGet()<cr>
 amenu &CVS.E&xtra.Get\ file\ (&password)		:call CVSGet('','','io')<cr>
 amenu &CVS.Check&out					:call CVScheckout()<cr>
@@ -129,6 +133,11 @@ if v:version >= 600
   map <Leader>cgd	:call CVSToggleForceDir()<cr>
   map <Leader>cgq	:call CVSToggleQueryRevision()<cr>
   map <Leader>cgo	:call CVSToggleOutput()<cr>
+  map <Leader>cgs	:call CVSToggleSortOutput()<cr>
+  map <Leader>cgi	:call CVSInstallUpdates()<cr>
+  map <Leader>cgu	:call CVSDownloadUpdates()<cr>
+  map <Leader>cgh	:call CVSInstallAsHelp()<cr>
+  map <Leader>cgp	:call CVSInstallAsPlugin()<cr>
   map <Leader>cya	:call CVSSetForceDir(1)<cr>:call CVSadd()<cr>
   map <Leader>cyi	:call CVSSetForceDir(1)<cr>:call CVScommit()<cr>
   map <Leader>cyh	:call CVSSetForceDir(1)<cr>:call CVSshortstatus()<cr>
@@ -175,6 +184,8 @@ if v:version >= 600
   map <Leader>cxu	:call CVSupdatetorev()<cr>
   map <Leader>cxm	:call CVSupdatemergerev()<cr>
   map <Leader>cxd	:call CVSupdatemergediff()<cr>
+  map <Leader>cxg	:call CVSGet()<cr>
+  map <Leader>cxp	:call CVSGet('','','io')<cr>
   map <Leader>co	:call CVScheckout()<cr>
   map <Leader>cq	:call CVSqueryupdate()<cr>
   map <Leader>cu	:call CVSupdate()<cr>
@@ -193,10 +204,10 @@ function! CVSShowInfo()
   " show CVS info from directory
   let cvsroot='CVS'.s:sep.'Root'
   let cvsrepository='CVS'.s:sep.'Repository'
-  exec 'split '.cvsroot
+  silent! exec 'split '.cvsroot
   let root=getline(1)
   close
-  exec 'split '.cvsrepository
+  silent! exec 'split '.cvsrepository
   let repository=getline(1)
   close
   unlet cvsroot cvsrepository
@@ -223,6 +234,8 @@ function! CVSShowInfo()
     \."\nlet g:CVSqueryrevision = ".g:CVSqueryrevision
     \."\n\"\t\t\t Toggle output (0:buffer 1:statusline)"
     \."\nlet g:CVSdumpandclose = ".g:CVSdumpandclose
+    \."\n\"\t\t\t Toggle sorting output (0:no sorting)"
+    \."\nlet g:CVSsortoutput = ".g:CVSsortoutput
     \."\n\"\t\t\t show cvs version"
     \."\nexec(\':!".$CVSCMD." -v\')"
     \."\n"
@@ -230,7 +243,7 @@ function! CVSShowInfo()
     \."\n\" Change above values to your needs."
     \."\n\" To execute a line, put the cursor on it"
     \."\n\" and press <shift-cr> or <DoubleClick>"
-    \."\n\" CVSmenu $Revision: 1.31 $"
+    \."\n\" CVSmenu $Revision: 1.37 $"
     \."\n\" Site: http://ezytools.sf.net/VimTools"
   normal "iP
   normal dd
@@ -243,6 +256,7 @@ function! CVSShowInfo()
     map <buffer> <s-cr> :exec getline('.')<cr>:set nomod<cr>:echo getline('.')<cr>
     map <buffer> <2-LeftMouse> <s-cr>
     set syntax=vim
+    set nomodified
   endif
   unlet root repository
 endfunction
@@ -320,8 +334,84 @@ function! CVSUpdateMapping()
 endfunction
 
 "-----------------------------------------------------------------------------
+" sort output
+"-----------------------------------------------------------------------------
+
+" move all lines matching "searchstr" to top
+function! CVSMoveToTop(searchstr)
+  let @z=''
+  normal gg
+  let v:errmsg=''
+  while (v:errmsg=='')
+    silent! exec '/'.a:searchstr
+    if v:errmsg==''
+      normal "Zddk
+    endif
+  endwhile
+  normal gg"ZP
+endfunction
+
+" only called by CVSShortStatus
+function! CVSSortStatusOutput()
+  " allow changes
+  call CVSMakeRW()
+  call CVSMoveToTop('Status: Unknown$')
+  call CVSMoveToTop('Status: Needs Checkout$')
+  call CVSMoveToTop('Status: Needs Merge$')
+  call CVSMoveToTop('Status: Needs Patch$')
+  call CVSMoveToTop('Status: Locally Removed$')
+  call CVSMoveToTop('Status: Locally Added$')
+  call CVSMoveToTop('Status: Locally Modified$')
+  call CVSMoveToTop('Status: File had conflicts on merge$')
+  " insert last blank line (moving with '{}')
+  let v:errmsg=''
+  silent! exec '/Status: Up-to-date$'
+  if v:errmsg==''
+    normal O
+  endif
+endfunction
+
+" called by CVSDoCommand
+function! CVSSortOutput()
+  " allow changes
+  call CVSMakeRW()
+  call CVSMoveToTop('^? ')	" unknown	- why does it beep ???
+  call CVSMoveToTop('^T ')	" tag
+  call CVSMoveToTop('^D ')	" delete
+  call CVSMoveToTop('^N ')	" new
+  call CVSMoveToTop('^U ')	" update
+  call CVSMoveToTop('^M ')	" merge
+  call CVSMoveToTop('^P ')	" patch
+  call CVSMoveToTop('^C ')	" conflict
+endfunction
+
+"-----------------------------------------------------------------------------
 " status variables
 "-----------------------------------------------------------------------------
+
+function! CVSSaveOpts()
+  let s:CVSROOTbak            = $CVSROOT
+  let s:CVS_RSHbak            = $CVS_RSH
+  let s:CVSOPTbak             = $CVSOPT
+  let s:CVSCMDOPTbak          = $CVSCMDOPT
+  let s:CVSCMDbak             = $CVSCMD
+  let s:CVSforcedirectorybak  = g:CVSforcedirectory
+  let s:CVSqueryrevisionbak   = g:CVSqueryrevision
+  let s:CVSdumpandclosebak    = g:CVSdumpandclose
+endfunction
+
+function! CVSRestoreOpts()
+  let $CVSROOT                = s:CVSROOTbak          
+  let $CVS_RSH                = s:CVS_RSHbak          
+  let $CVSOPT                 = s:CVSOPTbak           
+  let $CVSCMDOPT              = s:CVSCMDOPTbak        
+  let $CVSCMD                 = s:CVSCMDbak           
+  let g:CVSforcedirectory     = s:CVSforcedirectorybak
+  let g:CVSqueryrevision      = s:CVSqueryrevisionbak 
+  let g:CVSdumpandclose       = s:CVSdumpandclosebak  
+  unlet s:CVSROOTbak s:CVS_RSHbak s:CVSOPTbak s:CVSCMDOPTbak s:CVSCMDbak
+  unlet s:CVSforcedirectorybak s:CVSqueryrevisionbak s:CVSdumpandclosebak
+endfunction
 
 " set scope : file or directory, inform user
 function! CVSSetForceDir(value)
@@ -376,28 +466,14 @@ function! CVSDumpAndClose()
   close
 endfunction
 
-function! CVSSaveOpts()
-  let s:CVSROOTbak            = $CVSROOT
-  let s:CVS_RSHbak            = $CVS_RSH
-  let s:CVSOPTbak             = $CVSOPT
-  let s:CVSCMDOPTbak          = $CVSCMDOPT
-  let s:CVSCMDbak             = $CVSCMD
-  let s:CVSforcedirectorybak  = g:CVSforcedirectory
-  let s:CVSqueryrevisionbak   = g:CVSqueryrevision
-  let s:CVSdumpandclosebak    = g:CVSdumpandclose
-endfunction
-
-function! CVSRestoreOpts()
-  let $CVSROOT                = s:CVSROOTbak          
-  let $CVS_RSH                = s:CVS_RSHbak          
-  let $CVSOPT                 = s:CVSOPTbak           
-  let $CVSCMDOPT              = s:CVSCMDOPTbak        
-  let $CVSCMD                 = s:CVSCMDbak           
-  let g:CVSforcedirectory     = s:CVSforcedirectorybak
-  let g:CVSqueryrevision      = s:CVSqueryrevisionbak 
-  let g:CVSdumpandclose       = s:CVSdumpandclosebak  
-  unlet s:CVSROOTbak s:CVS_RSHbak s:CVSOPTbak s:CVSCMDOPTbak s:CVSCMDbak
-  unlet s:CVSforcedirectorybak s:CVSqueryrevisionbak s:CVSdumpandclosebak
+" Sort output (group conflicts,updates,...)
+function! CVSToggleSortOutput()
+  let g:CVSsortoutput = 1 - g:CVSsortoutput
+  if g:CVSsortoutput > 0
+    echo 'CVS:sorting output'
+  else
+    echo 'CVS:unsorted output'
+  endif
 endfunction
 
 "-----------------------------------------------------------------------------
@@ -418,12 +494,16 @@ function! CVSDoCommand(cmd,...)
     let filename = a:1
   endif
   let tmpnam=tempname()
-  exec '!'.$CVSCMD.' '.$CVSOPT.' '.a:cmd.' '.$CVSCMDOPT.' '.filename.'> '.tmpnam
+  silent! exec '!'.$CVSCMD.' '.$CVSOPT.' '.a:cmd.' '.$CVSCMDOPT.' '.filename.'> '.tmpnam
   new
   exec 'read '.tmpnam
   normal ggdd
   if delete (tmpnam)==1
     echo 'CVS: could not delete temp:'.tmpnam
+  endif
+  " group conflicts, updates, ....
+  if g:CVSsortoutput > 0
+    call CVSSortOutput()
   endif
   " reset single shot flag
   if g:CVSforcedirectory==1
@@ -445,12 +525,29 @@ endfunction
 " CVS login / logout (password prompt)
 "-----------------------------------------------------------------------------
 
-function! CVSlogin()
-  exec '!'.$CVSCMD.' '.$CVSOPT.' login '.$CVSCMDOPT
+function! CVSlogin(...)
+  if a:0 == 0
+    let pwpipe = ''
+  else
+    let pwpipe = 'echo '
+    if !has("unix") 
+      if a:1 == ''
+        let pwpipe = pwpipe . '.'
+      endif
+    endif
+    let pwpipe = pwpipe . a:1 . '|'
+  endif
+  if has("unix")
+    " show password prompt 
+    exec '!'.pwpipe.$CVSCMD.' '.$CVSOPT.' login '.$CVSCMDOPT
+  else
+    " shell is opened in win32 (dos?)
+    silent! exec '!'.pwpipe.$CVSCMD.' '.$CVSOPT.' login '.$CVSCMDOPT
+  endif
 endfunction
 
 function! CVSlogout()
-  exec '!'.$CVSCMD.' '.$CVSOPT.' logout '.$CVSCMDOPT
+  silent! exec '!'.$CVSCMD.' '.$CVSOPT.' logout '.$CVSCMDOPT
 endfunction
 
 "-----------------------------------------------------------------------------
@@ -467,7 +564,12 @@ function! CVSrelease()
   let releasedir=expand('%:p:h')
   exec ':cd ..'
   " confirmation prompt -> dont use CVSDoCommand
-  exec '!'.$CVSCMD.' '.$CVSOPT.' release '.localtoo.releasedir.' '.$CVSCMDOPT
+  if has("unix")
+    " show confirmation prompt
+    exec '!'.$CVSCMD.' '.$CVSOPT.' release '.localtoo.releasedir.' '.$CVSCMDOPT
+  else
+    silent! exec '!'.$CVSCMD.' '.$CVSOPT.' release '.localtoo.releasedir.' '.$CVSCMDOPT
+  endif
   unlet localtoo releasedir
 endfunction
 
@@ -487,14 +589,20 @@ function! CVSdiff()
   if rev!=''
     let rev='-r '.rev.' '
   endif
+  " jump to next/prev diff : <tab> / <s-tab>
+  map <buffer> <tab> ]c
+  map <buffer> <s-tab> [c
   wincmd _
   " We need CVS output. -> dont use CVSDoCommand
-  exec '!'.$CVSCMD.' '.$CVSOPT.' update -p '.rev.expand('%:p:t').' '.$CVSCMDOPT.'> '.tmpnam
+  silent! exec '!'.$CVSCMD.' '.$CVSOPT.' update -p '.rev.expand('%:p:t').' '.$CVSCMDOPT.'> '.tmpnam
   if v:version<600
     exec 'diffsplit '.tmpnam
   else
     exec 'vertical diffsplit '.tmpnam
   endif
+  " jump to next diff (other buffer)
+  map <buffer> <tab> ]c
+  map <buffer> <s-tab> [c
   unlet tmpnam rev
 endfunction
 
@@ -699,7 +807,7 @@ function! CVSupdate()
     let mergerevend = ''
   endif
   " update or query
-  if g:CVSupdatequeryonly > 0
+  if s:CVSupdatequeryonly > 0
     call CVSDoCommand('-n update -P '.rev.mergerevstart.mergerevend)
   else
     call CVSDoCommand('update '.rev.mergerevstart.mergerevend)
@@ -708,9 +816,9 @@ function! CVSupdate()
 endfunction
 
 function! CVSqueryupdate()
-  let g:CVSupdatequeryonly = 1
+  let s:CVSupdatequeryonly = 1
   call CVSupdate()
-  let g:CVSupdatequeryonly = 0
+  let s:CVSupdatequeryonly = 0
 endfunction
 
 function! CVSupdatetorev()
@@ -926,23 +1034,9 @@ function! CVSshortstatus()
     let savedironce=0
   endif
   call CVSstatus()
-  " allow throwing some line around
   call CVSMakeRW()
   call CVSCompressStatus()
-  call CVSMoveToTop('Status: Unknown$')
-  call CVSMoveToTop('Status: Needs Checkout$')
-  call CVSMoveToTop('Status: Needs Merge$')
-  call CVSMoveToTop('Status: Needs Patch$')
-  call CVSMoveToTop('Status: Locally Removed$')
-  call CVSMoveToTop('Status: Locally Added$')
-  call CVSMoveToTop('Status: Locally Modified$')
-  call CVSMoveToTop('Status: File had conflicts on merge$')
-  " insert last blank line (moving with '{}')
-  let v:errmsg=''
-  silent! exec '/Status: Up-to-date$'
-  if v:errmsg==''
-    normal O
-  endif
+  call CVSSortStatusOutput()
   normal gg
   call CVSMakeRO()
   if savedironce==1
@@ -978,20 +1072,6 @@ function! CVSCompressStatus()
   endwhile
 endfunction
 
-" move all lines matching "searchstr" to top (for CVSShortStatus)
-function! CVSMoveToTop(searchstr)
-  let @z=''
-  normal gg
-  let v:errmsg=''
-  while (v:errmsg=='')
-    silent! exec '/'.a:searchstr
-    if v:errmsg==''
-      normal "Zddk
-    endif
-  endwhile
-  normal gg"ZP
-endfunction
-
 "-----------------------------------------------------------------------------
 " quick get file.
 "-----------------------------------------------------------------------------
@@ -1002,21 +1082,23 @@ function! CVSGet(...)
   " 1:filename
   " 2:repository
   " 3:string:i=login,o=logout
+  " 4:string:login password
   " save flags, do not destroy CVSSaveOpts
   let cvsoptbak=$CVSCMDOPT
   let outputbak=g:CVSdumpandclose
-    let rep=''
-    let log=''
+  let rep=''
+  let log=''
+  let fn=''
   " eval params
-  if a:0 == 3		" file,rep,logflag
-    let fn=a:1
-    let rep=a:2
-    let log=a:3
-  elseif a:0 == 2	" file,rep
-    let fn=a:1
-    let rep=a:2
-  elseif a:0 == 1	" file: (use current rep) 
-    let fn=a:1
+  if     a:0 > 2	" file,rep,logflag[,logpw]
+    let fn  = a:1
+    let rep = a:2
+    let log = a:3
+  elseif a:0 > 1	" file,rep
+    let fn  = a:1
+    let rep = a:2
+  elseif a:0 > 0	" file: (use current rep) 
+    let fn  = a:1
   endif
   if fn == ''		" no name:query file and rep
     let rep=input("CVSROOT:")
@@ -1034,7 +1116,11 @@ function! CVSGet(...)
     let g:CVSdumpandclose=0
     " login
     if match(log,'i') > -1
-      call CVSlogin()
+      if (a:0 == 4)	" login with pw (if given)
+        call CVSlogin(a:4)
+      else
+        call CVSlogin()
+      endif
     endif
     " get file
     call CVSDoCommand('checkout -p',fn)
@@ -1054,9 +1140,14 @@ endfunction
 "-----------------------------------------------------------------------------
 
 function! CVSInstallUpdates()
+  if confirm("Install updates: Close all buffers, first !", 
+           \ "&Cancel\n&Ok") < 2
+    echo 'Install updates:aborted'
+    return
+  endif
   call CVSDownloadUpdates()
   call CVSInstallAsHelp('cvsmenu.txt')
-  " force switch buffer. (closing is cached)
+  " force switch buffer. (closing seems to be "cached")
   normal 
   call CVSInstallAsPlugin('cvsmenu.vim')
   normal t
@@ -1065,38 +1156,38 @@ function! CVSInstallUpdates()
 endfunction
 
 function! CVSDownloadUpdates()
-  call CVSGet('VimTools/cvsmenu.vim',s:cvsmenucvs,'i')
-  call CVSGet('VimTools/cvsmenu.txt',s:cvsmenucvs,'o')
+  call CVSGet('VimTools/cvsmenu.vim',s:cvsmenucvs,'i','')
+  call CVSGet('VimTools/cvsmenu.txt',s:cvsmenucvs,'o','')
 endfunction
 
-function! CVSInstallAsHelp(destname)
+function! CVSInstallAsHelp(...)
   " ask for name to save as (if not given)
-  let dest=input('Helpfilename (clear to abort):',a:destname)
+  if (a:0 == 0) || (a:1 == '')
+    let dest=input('Helpfilename (clear to abort):')
+  else
+    let dest=a:1
+  endif
   " abort if still no filename
   if dest==''
     echo 'Install help:aborted'
   else
     " create directories "~/.vim/doc" if needed
-    let localvim=expand('~/.vim')
-    let localvimdoc=localvim.'/doc'
-    if !isdirectory(localvim)
-      exec '!mkdir '.localvim
-    endif
-    if !isdirectory(localvimdoc)
-      exec '!mkdir '.localvimdoc
-    endif
+    call CVSAssureLocalDirs()
     " copy to local doc dir
-    exec 'w! '.localvimdoc.'/'.dest
+    exec 'w! '.s:localvimdoc.'/'.dest
     " create tags
-    exec 'helptags '.localvimdoc
-    unlet localvim localvimdoc
+    exec 'helptags '.s:localvimdoc
   endif
   unlet dest
 endfunction
 
-function! CVSInstallAsPlugin(destname)
+function! CVSInstallAsPlugin(...)
   " ask for name to save as
-  let dest=input('Pluginfilename (clear to abort):',a:destname)
+  if (a:0 == 0) || (a:1 == '')
+    let dest=input('Pluginfilename (clear to abort):',a:1)
+  else
+    let dest=a:1
+  endif
   " abort if still no filename
   if dest==''
     echo 'Install plugin:aborted'
@@ -1108,12 +1199,77 @@ function! CVSInstallAsPlugin(destname)
 endfunction
 
 "-----------------------------------------------------------------------------
+" user directories / CVSLinks
+"-----------------------------------------------------------------------------
+
+function! CVSOpenLinks()
+  let links=s:localvim.s:sep.'cvslinks.vim'
+  call CVSAssureLocalDirs()
+  if !filereadable(links)
+    let @z = "\" ~/cvslinks.vim\n"
+      \ . "\" move to a command and press <shift-cr> to execute it\n"
+      \ . "\" (one-liners only).\n\n"
+      \ . "nmap <buffer> <2-leftmouse> :exec getline('.')<cr>\n"
+      \ . "nmap <buffer> <s-cr> :exec getline('.')<cr>\n"
+      \ . "finish\n\n"
+      \ . "\" add modifications below here\n\n"
+      \ . "\" look for a new Vim\n"
+      \ . "\" login, get latest Vim README.txt, logout\n"
+      \ . "call CVSGet('vim/README.txt', ':pserver:anonymous@cvs.vim.org:/cvsroot/vim', 'io', '')\n\n"
+      \ . "\" manual cvsmenu update (-> CVS.Settings.Install buffer as...)\n"
+      \ . "\" login, get latest version of cvsmenu.vim\n"
+      \ . "call CVSGet('VimTools/cvsmenu.vim',':pserver:anonymous@cvs.ezytools.sf.net:/cvsroot/ezytools','i','')\n"
+      \ . "\" get latest cvsmenu.txt, logout\n"
+      \ . "call CVSGet('VimTools/cvsmenu.vim',':pserver:anonymous@cvs.ezytools.sf.net:/cvsroot/ezytools','o','')\n\n"
+      \ . "\" Get some help on this\n"
+      \ . "help CVSFunctions"
+    exec ':cd '.s:localvim
+    new
+    normal "zP
+    exec ':x '.links
+  endif
+  if !filereadable(links)
+    echo 'CVSLinks: cannot access '.links
+    return
+  endif
+  exec ':sp '.links
+  exec ':so %'
+  unlet links
+endfunction
+
+function! CVSAssureLocalDirs()
+  if !isdirectory(s:localvim)
+    silent! exec '!mkdir '.s:localvim
+  endif
+  if !isdirectory(s:localvimdoc)
+    silent! exec '!mkdir '.s:localvimdoc
+  endif
+endfunction
+
+function! CVSGetFolderNames()
+  if has("unix")
+    " expands to /home/(user)
+    let s:localvim=expand('~').s:sep.'.vim'
+  else
+    " expands to $HOME (must be set)
+    if expand('~') == ''
+      let s:localvim=$VIMRUNTIME
+    else
+      let s:localvim=expand('~').s:sep.'vimfiles'
+    endif
+  endif
+  let s:localvimdoc=s:localvim.s:sep.'doc'
+endfunction
+
+"-----------------------------------------------------------------------------
 " initialization
 "-----------------------------------------------------------------------------
 
+call CVSGetFolderNames()
 call CVSAddConflictSyntax()
 
 if !exists("loaded_cvsmenu")
   let loaded_cvsmenu=1
 endif
+
 
