@@ -1,7 +1,7 @@
 " CVSmenu.vim : Vim menu for using CVS
 " Author : Thorsten Maerz <info@netztorte.de>
-" $Revision: 1.16 $
-" $Date: 2001/08/19 19:19:34 $
+" $Revision: 1.3.2.16 $
+" $Date: 2001/08/17 00:51:52 $
 "
 " Tested with Vim 6.0
 " Primary site : http://ezytools.sourceforge.net/
@@ -15,9 +15,9 @@
 "aunmenu CVS
 
 if has('unix')
-  let g:sep='/'
+  let s:sep='/'
 else
-  let g:sep='\'
+  let s:sep='\'
 endif
 
 if ($TEMP == '')
@@ -42,14 +42,16 @@ if !exists("g:CVSqueryrevision")
   let g:CVSqueryrevision = 0		" 0:fast update 1:query for revisions
 endif
 
+let s:cvsmenuprimary="http://cvs.sf.net/cgi-bin/viewcvs.cgi/~checkout~/ezytools/VimTools/"
+
 "-----------------------------------------------------------------------------
 " Menu entries
 "-----------------------------------------------------------------------------
 " <esc> in Keyword menus to avoid expansion
 
 amenu &CVS.in&fo  	      			:call CVSShowInfo()<cr>
-amenu &CVS.Director&y.&Toggle\ buf/dir		:call CVSToggleForceDir()<cr>
-amenu &CVS.Director&y.-SEP1-			:
+amenu &CVS.Settin&gs.Toggle\ buffer/&dir	:call CVSToggleForceDir()<cr>
+amenu &CVS.Settin&gs.Toggle\ revision\ &queries	:call CVSToggleQueryRevision()<cr>
 amenu &CVS.Director&y.&Add			:call CVSSetForceDir(1)<cr>:call CVSadd()<cr>
 amenu &CVS.Director&y.Comm&it			:call CVSSetForceDir(1)<cr>:call CVScommit()<cr>
 amenu &CVS.Director&y.S&hort\ Status		:call CVSSetForceDir(1)<cr>:call CVSshortstatus()<cr>
@@ -74,12 +76,10 @@ amenu &CVS.Ad&min.log&in			:call CVSlogin()<cr>
 amenu &CVS.Ad&min.log&out			:call CVSlogout()<cr>
 amenu &CVS.D&elete.Re&move\ from\ rep.		:call CVSremove()<cr>
 amenu &CVS.D&elete.Re&lease\ workdir		:call CVSrelease()<cr>
-amenu &CVS.&Tag.Toggle\ revision\ &queries	:call CVSToggleQueryRevision()<cr>
-amenu &CVS.&Tag.-SEP1-				:
 amenu &CVS.&Tag.&Create\ Tag			:call CVStag()<cr>
 amenu &CVS.&Tag.&Remove\ Tag			:call CVStagremove()<cr>
 amenu &CVS.&Tag.Create\ &Branch			:call CVSbranch()<cr>
-amenu &CVS.&Tag.-SEP2-				:
+amenu &CVS.&Tag.-SEP1-				:
 amenu &CVS.&Tag.Cre&ate\ Tag\ by\ module	:call CVSrtag()<cr>
 amenu &CVS.&Tag.Rem&ove\ Tag\ by\ module	:call CVSrtagremove()<cr>
 amenu &CVS.&Tag.Create\ Branc&h\ by\ module	:call CVSrbranch()<cr>
@@ -100,6 +100,11 @@ amenu &CVS.&Log					:call CVSlog()<cr>
 amenu &CVS.&Status				:call CVSstatus()<cr>
 amenu &CVS.S&hort\ Status			:call CVSshortstatus()<cr>
 amenu &CVS.-SEP3-				:
+amenu &CVS.E&xtra.Higlight\ &conflicts		:call CVSAddConflictSyntax()<cr>
+amenu &CVS.E&xtra.-SEP1-			:
+amenu &CVS.E&xtra.&Update\ to\ revision		:call CVSupdatetorev()<cr>
+amenu &CVS.E&xtra.&Merge\ revision		:call CVSupdatemergerev()<cr>
+amenu &CVS.E&xtra.Merge\ revision\ &diffs	:call CVSupdatemergediff()<cr>
 amenu &CVS.Check&out				:call CVScheckout()<cr>
 amenu &CVS.&Query\ Update			:call CVSqueryupdate()<cr>
 amenu &CVS.&Update				:call CVSupdate()<cr>
@@ -109,7 +114,6 @@ amenu &CVS.&Add					:call CVSadd()<cr>
 amenu &CVS.Comm&it				:call CVScommit()<cr>
 amenu &CVS.Im&port				:call CVSimport()<cr>
 
-
 "-----------------------------------------------------------------------------
 " show cvs info
 "-----------------------------------------------------------------------------
@@ -117,8 +121,8 @@ amenu &CVS.Im&port				:call CVSimport()<cr>
 function! CVSShowInfo()
   exec 'cd '.expand('%:p:h')
   " show CVS info from directory
-  let cvsroot='CVS'.g:sep.'Root'
-  let cvsrepository='CVS'.g:sep.'Repository'
+  let cvsroot='CVS'.s:sep.'Root'
+  let cvsrepository='CVS'.s:sep.'Repository'
   if has('unix')
     let catcmd='cat '
   else
@@ -157,12 +161,18 @@ function! CVSShowInfo()
   call append('$',"let g:CVSqueryrevision = ".g:CVSqueryrevision)
   call append('$',"\"\t\t\t show cvs version")
   call append('$',"exec(\':!".$CVSCMD." -v\')")
+  if exists("g:loaded_netrw") > 0
+    call append('$',"\"\t\t\t get latest cvsmenu doc")
+    call append('$',"exec(\':sp ".s:cvsmenuprimary."cvsmenu.txt')")
+    call append('$',"\"\t\t\t get latest cvsmenu version")
+    call append('$',"exec(\':sp ".s:cvsmenuprimary."cvsmenu.vim')")
+  endif
   call append('$',"")
   call append('$',"\"----------------------------------------")
   call append('$',"\" Change above values to your needs.")
   call append('$',"\" To execute a line, put the cursor on it")
   call append('$',"\" and press <shift-cr> or <DoubleClick>")
-  call append('$',"\" CVSmenu $Revision: 1.16 $")
+  call append('$',"\" CVSmenu $Revision: 1.3.2.16 $")
   call append('$',"\" Site: http://ezytools.sf.net/VimTools")
   normal dd
   map <buffer> q :bd!<cr>
@@ -228,7 +238,7 @@ function! CVSUpdateSyntax()
   hi link cvsstatusConflict    	Warningmsg
   hi link cvsstatusUnknown    	Comment
 
-  if !filereadable($VIM.g:sep.'syntax'.g:sep.'rcslog')
+  if !filereadable($VIM.s:sep.'syntax'.s:sep.'rcslog')
     syn match cvslogRevision	'^revision.*$'
     syn match cvslogFile	'^RCS file:.*'
     syn match cvslogDate	'^date: .*$'
@@ -236,6 +246,13 @@ function! CVSUpdateSyntax()
     hi link cvslogRevision	Constant
     hi link cvslogDate		Identifier
   endif
+endfunction
+
+function! CVSAddConflictSyntax()
+  syn region CVSConflictOrg start="^<<<<<<<" end="^===="
+  syn region CVSConflictNew start="===" end="^>>>>>>>"
+  hi link CVSConflictOrg DiffChange
+  hi link CVSConflictNew DiffAdd
 endfunction
 
 "-----------------------------------------------------------------------------
@@ -255,8 +272,8 @@ function! CVSDoCommand(cmd,tmpext,target)
   else
     let filename = a:target
   endif
-"  let tmpnam=$TEMP.g:sep.expand('%').a:tmpext
-  let tmpnam=$TEMP.g:sep.filename.a:tmpext
+"  let tmpnam=$TEMP.s:sep.expand('%').a:tmpext
+  let tmpnam=$TEMP.s:sep.filename.a:tmpext
   exec '!'.$CVSCMD.' '.$CVSOPT.' '.a:cmd.' '.$CVSCMDOPT.filename'> '.tmpnam
   new
   exec 'read '.tmpnam
@@ -312,7 +329,7 @@ endfunction
 
 function! CVSdiff()
   exec 'cd '.expand('%:p:h')
-  let tmpnam=$TEMP.g:sep.expand('%')
+  let tmpnam=$TEMP.s:sep.expand('%')
   " query revision (if wanted)
   if g:CVSqueryrevision > 0
     let rev=input('Revision (optional):','')
@@ -550,6 +567,73 @@ function! CVSqueryupdate()
   let g:CVSupdatequeryonly = 1
   call CVSupdate()
   let g:CVSupdatequeryonly = 0
+endfunction
+
+function! CVSupdatetorev()
+  " Force revision input
+  let rev=input('Revision:','')
+  if rev==''
+    echo "UpdateToRev:aborted"
+    return
+  endif
+  let rev='-r '.rev.' '
+  " save old state
+  let cvscmdoptbak=$CVSCMDOPT
+  let queryrevisionbak=g:CVSqueryrevision
+  let $CVSCMDOPT=rev
+  " call update
+  call CVSupdate()
+  " restore options
+  let g:CVSqueryrevision=queryrevisionbak
+  let $CVSCMDOPT=cvscmdoptbak
+  unlet queryrevisionbak cvscmdoptbak rev
+endfunction
+
+function! CVSupdatemergerev()
+  " Force revision input
+  let mergerevstart=input('Merge from 1st Revision (optional):','')
+  if mergerevstart==''
+    echo "UpdateMergeRev:aborted"
+    return
+  endif
+  let mergerevstart='-j '.mergerevstart.' '
+  " save old state
+  let cvscmdoptbak=$CVSCMDOPT
+  let queryrevisionbak=g:CVSqueryrevision
+  let $CVSCMDOPT=mergerevstart
+  " call update
+  call CVSupdate()
+  " restore options
+  let g:CVSqueryrevision=queryrevisionbak
+  let $CVSCMDOPT=cvscmdoptbak
+  unlet queryrevisionbak cvscmdoptbak mergerevstart
+endfunction
+
+function! CVSupdatemergediff()
+  " Force revision input
+  let mergerevstart=input('Merge from 1st Revision (optional):','')
+  if mergerevstart==''
+    echo "UpdateMergeRev:aborted"
+    return
+  endif
+  let mergerevend=input('Merge from 2nd Revision (optional):','')
+  if mergerevend==''
+    echo "UpdateMergeRev:aborted"
+    return
+  endif
+  let mergerevstart='-j '.mergerevstart.' '
+  let mergerevend='-j '.mergerevend.' '
+  " save old state
+  let cvscmdoptbak=$CVSCMDOPT
+  let queryrevisionbak=g:CVSqueryrevision
+  let $CVSCMDOPT=mergerevstart.mergerevend
+  " call update
+  call CVSupdate()
+  " restore options
+  let g:CVSqueryrevision=queryrevisionbak
+  let $CVSCMDOPT=cvscmdoptbak
+  unlet queryrevisionbak
+  unlet cvscmdoptbak
 endfunction
 
 "-----------------------------------------------------------------------------
