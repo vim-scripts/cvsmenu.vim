@@ -1,0 +1,8 @@
+This is a mirror of http://www.vim.org/scripts/script.php?script_id=58
+
+Supports most cvs commands and adds som extended functions, e.g. 
+- Query update (like WinCVS/gCVS)
+- Local Status (offline: displays status and version info)
+- Clickable/sorted output : easily open conflicting files, etc.
+Works on single files as well as on whole directories, when called from fileexplorer.
+Includes highlighting / mappings to navigate through cvs output or show conflicts.
