@@ -1,27 +1,83 @@
 " CVSmenu.vim : Vim menu for using CVS
 " Author : Thorsten Maerz <info@netztorte.de>
-" Last Update : 2001
+" $Revision: 1.2 $
+" $Date: 2001/08/12 22:45:36 $
 "
-" Needs Vim >= 6.0, WINDOWS(-->$temp)
+" Tested with Vim 6.0
 "
-" ToDo : if has("unix") then temp='/tmp' else temp=$temp
 " ToDo : set CVS options (compression, cvsroot)
-" ToDo : CVS commit / add / remove / checkout / login / logout
+" ToDo : CVS add / remove / login / logout
+" ToDo : support for directories
 
-"unmenu &CVS
+"unmenu CVS
 
-if ($temp == "")
-  let $temp="/tmp"
+if has("unix")
+  let $sep='/'
+else
+  let $sep='\'
 endif
 
-nmenu &CVS.edit	        	:sp $VIM/cvsmenu.vim<cr>
-nmenu &CVS.show&version		:!cvs -v<cr>
-nmenu &CVS.CVS&diff		:call CVSdiff()<cr>
-nmenu &CVS.CVS&annotate		:call CVSannotate()<cr>
-nmenu &CVS.CVS&log		:call CVSlog()<cr>
-nmenu &CVS.CVS&status		:call CVSstatus()<cr>
-nmenu &CVS.&queryupdate		:call CVSqueryupdate()<cr>
+if ($temp == "")
+  let $temp=expand("%:p:h")
+endif
 
+"-----------------------------------------------------------------------------
+" Menu entries
+"-----------------------------------------------------------------------------
+
+nmenu &CVS.in&fo        	:call ShowCVSinfo()<cr>
+nmenu &CVS.&Diff		:call CVSdiff()<cr>
+nmenu &CVS.&Annotate		:call CVSannotate()<cr>
+nmenu &CVS.&Log			:call CVSlog()<cr>
+nmenu &CVS.&Status		:call CVSstatus()<cr>
+nmenu &CVS.&query\ Update	:call CVSqueryupdate()<cr>
+nmenu &CVS.&Update		:call CVSupdate()<cr>
+nmenu &CVS.Check&out		:call CVScheckout()<cr>
+nmenu &CVS.Comm&it		:call CVScommit()<cr>
+
+"-----------------------------------------------------------------------------
+" show cvs info
+"-----------------------------------------------------------------------------
+
+function! ShowCVSinfo()
+  new
+  " show CVS info from directory
+  let root="none"
+  let repository="none"
+  if filereadable("CVS/Root")
+    let root=system("cat CVS/Root")
+  endif
+  if filereadable("CVS/Repository")
+    let repository=system("cat CVS/Repository")
+  endif
+  " show settings
+  call append("$","\"Current directory : ".expand("%:p:h"))
+  call append("$","\"Current Root : ".root)
+  call append("$","\"Current Repository : ".repository)
+  call append("$","")
+  call append("$","\"\t\t\t set environment var to cvsroot")
+  call append("$","let $CVSROOT=\"".$CVSROOT."\"")
+  call append("$","")
+  call append("$","\"\t\t\t set environment var to rsh/ssh")
+  call append("$","let $CVS_RSH=\"".$CVS_RSH."\"")
+  call append("$","")
+  call append("$","\"\t\t\t show cvs version")
+  call append("$","exec(\":!cvs -v\")")
+  call append("$","")
+  call append("$","\"\t\t\t edit cvs menu")
+  call append("$","split $VIM/cvsmenu.vim")
+  call append("$","")
+  call append("$","----------------------------------------")
+  call append("$","\" CVSmenu $Revision: 1.2 $")
+  call append("$","\" Change above values to your needs.")
+  call append("$","\" To execute a line, put the cursor on it")
+  call append("$","\" and press <shift-cr> or <DoubleClick>")
+  map <buffer> q :bd!<cr>
+  map <buffer> <s-cr> :exec getline(".")<cr>
+  map <buffer> <2-LeftMouse> :exec getline(".")<cr>
+  set nomod
+  set syntax=vim
+endfunction
 "-----------------------------------------------------------------------------
 " CVS update / query update : tools
 "-----------------------------------------------------------------------------
@@ -36,12 +92,16 @@ endfunction
 
 function! UpdateSyntax()
 " Used for CVSqueryupdate : Set syntax hilighting
-  syn match cvsupdateMerge 	"^M .*$"
+  syn match cvsupdateMerge	"^M .*$"
   syn match cvsupdatePatch	"^P .*$"
   syn match cvsupdateConflict	"^C .*$"
   syn match cvsupdateDelete	"^D .*$"
   syn match cvsupdateUnknown	"^? .*$"
-  hi link cvsupdateMerge 	Special
+  syn match cvscheckoutUpdate	"^U .*$"
+  syn match cvsimportNew	"^N .*$"
+  hi link cvsimportNew		Special
+  hi link cvscheckoutUpdat	Special
+  hi link cvsupdateMerge	Special
   hi link cvsupdatePatch	Constant
   hi link cvsupdateConflict	WarningMsg
   hi link cvsupdateDelete	Statement
@@ -54,18 +114,17 @@ endfunction
 
 function! CVSqueryupdate()
   exec "cd ".expand("%:p:h")
-  let tmpnam=$temp."/".expand("%")
+  let tmpnam=$temp.$sep.expand("%")
   let rev=""	
 "input("revision:","")
   if rev!=""
-    let tmpnam=tmpnam."\.".rev
+    let tmpnam=tmpnam.".".rev
     let rev="-r ".rev." "
   else
     let tmpnam=tmpnam.".current"
   endif
-"  wincmd _
-  new
-  exec "%!cvs -z9 -n update -P ".rev.expand("%:p:t")." > ".tmpnam
+  exec "!cvs -z9 -n update -P ".rev.expand("%:p:t")." > ".tmpnam
+  exec "sp".tmpnam
   call OpenRO()
   call UpdateSyntax()
 endfunction
@@ -76,19 +135,21 @@ endfunction
 
 function! CVSdiff()
   exec "cd ".expand("%:p:h")
-  let tmpnam=$temp."/".expand("%")
+  let tmpnam=$temp.$sep.expand("%")
   let rev=input("revision:","")
   if rev!=""
-    let tmpnam=tmpnam."\.".rev
+    let tmpnam=tmpnam.".".rev
     let rev="-r ".rev." "
   else
     let tmpnam=tmpnam.".current"
   endif
-"  call DoCVScommand("update -p ".rev.expand("%:p:t"),tmpnam)
   wincmd _
   exec "!cvs -z9 update -p ".rev.expand("%:p:t")." > ".tmpnam
-"  exec "!cvs -z9 update -p ".rev.a:fn." > ".tmpnam
-  exec "vertical diffsplit ".tmpnam
+  if v:version<600
+    exec "vertical diffsplit ".tmpnam
+  else
+    exec "vertical diffsplit ".tmpnam
+  endif
 endfunction
 
 "-----------------------------------------------------------------------------
@@ -108,20 +169,68 @@ endfunction
 
 function! CVSannotate()
   exec "cd ".expand("%:p:h")
-  let tmpnam=$temp."/".expand("%")."\.ann"
+  let tmpnam=$temp.$sep.expand("%").".ann"
   call DoCVScommand("annotate ".expand("%:p:t"),tmpnam)
   wincmd _
 endfunction
 
 function! CVSlog()
   exec "cd ".expand("%:p:h")
-  let tmpnam=$temp."/".expand("%")."\.log"
+  let tmpnam=$temp.$sep.expand("%").".log"
   call DoCVScommand("log ".expand("%:p:t"),tmpnam)
 endfunction
 
 function! CVSstatus()
   exec "cd ".expand("%:p:h")
-  let tmpnam=$temp."/".expand("%")."\.stat"
+  let tmpnam=$temp.$sep.expand("%").".stat"
   call DoCVScommand("status ".expand("%:p:t"),tmpnam)
+endfunction
+
+function! CVSupdate()
+  exec "cd ".expand("%:p:h")
+  let tmpnam=$temp.$sep.expand("%").".upd"
+  call DoCVScommand("update ".expand("%:p:t"),tmpnam)
+  call OpenRO()
+  call UpdateSyntax()
+endfunction
+
+"-----------------------------------------------------------------------------
+" CVS commit
+"-----------------------------------------------------------------------------
+
+function! CVScommit()
+  exec "cd ".expand("%:p:h")
+  let tmpnam=$temp.$sep.expand("%").".ci"
+  let message=input("Message : ")
+  if message==""
+    return
+  endif
+  call DoCVScommand("commit -m \'".message."\' ".expand("%:p:t"),tmpnam)
+endfunction
+
+"-----------------------------------------------------------------------------
+" CVS checkout
+"-----------------------------------------------------------------------------
+
+function! CVScheckout()
+  let tmpnam=$tempname()
+
+  let destdir=expand("%:p:h")
+  let destdir=input("Checkout to : ",destdir)
+  if destdir==""
+    return
+  endif
+  let module=input("Module name :")
+  if module==""
+    echo "Aborted"
+    return
+  endif
+  let rev=input("revision:","")
+  if rev!=""
+    let rev="-r ".rev." "
+  endif
+  call DoCVScommand("checkout ".rev.module,tmpnam)
+  call OpenRO()
+  call UpdateSyntax()
 endfunction
 
