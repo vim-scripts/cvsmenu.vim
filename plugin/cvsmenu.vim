@@ -1,9 +1,11 @@
 " CVSmenu.vim : Vim menu for using CVS
 " Author : Thorsten Maerz <info@netztorte.de>
-" $Revision: 1.2 $
-" $Date: 2001/08/12 22:45:36 $
+" $Revision: 1.4 $
+" $Date: 2001/08/13 08:29:52 $
 "
 " Tested with Vim 6.0
+" Primary site : http://ezytools.sourceforge.net/
+" Located in the "VimTools" section
 "
 " ToDo : set CVS options (compression, cvsroot)
 " ToDo : CVS add / remove / login / logout
@@ -68,7 +70,7 @@ function! ShowCVSinfo()
   call append("$","split $VIM/cvsmenu.vim")
   call append("$","")
   call append("$","----------------------------------------")
-  call append("$","\" CVSmenu $Revision: 1.2 $")
+  call append("$","\" CVSmenu $Revision: 1.4 $")
   call append("$","\" Change above values to your needs.")
   call append("$","\" To execute a line, put the cursor on it")
   call append("$","\" and press <shift-cr> or <DoubleClick>")
@@ -124,7 +126,7 @@ function! CVSqueryupdate()
     let tmpnam=tmpnam.".current"
   endif
   exec "!cvs -z9 -n update -P ".rev.expand("%:p:t")." > ".tmpnam
-  exec "sp".tmpnam
+  exec "sp ".tmpnam
   call OpenRO()
   call UpdateSyntax()
 endfunction
@@ -146,7 +148,7 @@ function! CVSdiff()
   wincmd _
   exec "!cvs -z9 update -p ".rev.expand("%:p:t")." > ".tmpnam
   if v:version<600
-    exec "vertical diffsplit ".tmpnam
+    exec "diffsplit ".tmpnam
   else
     exec "vertical diffsplit ".tmpnam
   endif
@@ -213,7 +215,7 @@ endfunction
 "-----------------------------------------------------------------------------
 
 function! CVScheckout()
-  let tmpnam=$tempname()
+  let tmpnam=tempname()
 
   let destdir=expand("%:p:h")
   let destdir=input("Checkout to : ",destdir)
